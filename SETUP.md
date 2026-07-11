@@ -7,22 +7,28 @@ rodando com HTTPS automático.
 
 Repositório: https://github.com/Arthur-MD/cont_chat_psipj
 
-## Pré-requisito: um domínio
+## Pré-requisito: DNS do domínio
 
-O Caddy (que cuida do HTTPS) precisa de um domínio de verdade apontando pro
-IP da sua VPS — não dá para usar HTTPS automático só com o IP puro.
+Domínio: `psicologopj.com.br` (Registro.br, DNS gerenciado lá mesmo —
+nameservers `sec.dns.br`). VPS: `167.233.169.248` (Hetzner CX23, Nuremberg).
 
-1. Se você já tem um domínio (ex.: `contasofia.com.br`), no painel do seu
-   registrador (Registro.br, GoDaddy, HostGator...) crie **dois registros
-   tipo A**:
-   ```
-   chat.contasofia.com.br      ->  IP_DA_VPS
-   triagem.contasofia.com.br   ->  IP_DA_VPS
-   ```
-2. Se não tem domínio ainda, registre um (ex.: no Registro.br, ~R$40/ano
-   para `.com.br`) antes de continuar.
+No painel do Registro.br → seu domínio → aba **DNS** → crie **dois
+registros tipo A**:
 
-A propagação do DNS pode levar de minutos a algumas horas.
+```
+chat.psicologopj.com.br      ->  167.233.169.248
+triagem.psicologopj.com.br   ->  167.233.169.248
+```
+
+No campo "Nome"/"Host" geralmente basta digitar `chat` e `triagem` (sem o
+domínio completo) — o painel já entende que vira `chat.psicologopj.com.br`.
+
+A propagação do DNS pode levar de minutos a algumas horas. Para conferir se
+já propagou, rode (no seu computador ou na VPS):
+```bash
+nslookup chat.psicologopj.com.br
+```
+Se retornar `167.233.169.248`, já propagou e pode seguir para o Passo 5.
 
 ## Passo 1 — Criar a VPS
 
@@ -39,7 +45,7 @@ Você já fez isso (CX23, Ubuntu, 4GB RAM). Só confirme antes de finalizar:
 ## Passo 2 — Conectar na VPS e conferir o Docker
 
 ```bash
-ssh root@IP_DA_VPS
+ssh root@167.233.169.248
 ```
 
 Se marcou "Docker CE" na criação, já está instalado — confirme:
@@ -76,7 +82,7 @@ nano .env
 Preencha, no mínimo:
 
 - `SECRET_KEY_BASE` — gere com `openssl rand -hex 64`
-- `FRONTEND_URL` — `https://chat.SEUDOMINIO.com.br` (o domínio real)
+- `FRONTEND_URL` — `https://chat.psicologopj.com.br` (o domínio real)
 - `POSTGRES_PASSWORD` — gere com `openssl rand -hex 24`
 
 Depois, configure o bot de triagem:
@@ -93,8 +99,9 @@ webhook com `openssl rand -hex 16`, colando o resultado em `WEBHOOK_TOKEN`
 `CHATWOOT_BOT_TOKEN` em branco por enquanto — você só vai ter esse token no
 passo 8.
 
-Por fim, volte para a raiz do repo (`cd ..`) e edite o `Caddyfile`, trocando
-`SEU-DOMINIO.com.br` pelo seu domínio real nas duas linhas.
+O `Caddyfile` já vem configurado com `chat.psicologopj.com.br` e
+`triagem.psicologopj.com.br` — não precisa editar nada nele, a menos que
+você troque de domínio no futuro.
 
 ## Passo 5 — Subir tudo
 
@@ -120,7 +127,7 @@ docker compose logs -f
 
 ## Passo 6 — Criar sua conta admin (e trancar o cadastro)
 
-1. Abra `https://chat.SEUDOMINIO.com.br` no navegador.
+1. Abra `https://chat.psicologopj.com.br` no navegador.
 2. Crie sua conta (você vira o administrador).
 3. Volte no `.env` do Chatwoot e mude:
    ```
@@ -158,7 +165,7 @@ Dentro do console Rails que abrir:
 bot = AgentBot.create!(
   name: "Triagem IA",
   # o WEBHOOK_TOKEN é o mesmo que você gerou no passo 4 (bot/.env)
-  outgoing_url: "https://triagem.SEUDOMINIO.com.br/webhook/SEU_WEBHOOK_TOKEN",
+  outgoing_url: "https://triagem.psicologopj.com.br/webhook/SEU_WEBHOOK_TOKEN",
   account_id: 1
 )
 puts bot.access_token.token   # <- copie: é o CHATWOOT_BOT_TOKEN
