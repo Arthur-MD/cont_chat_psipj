@@ -1,0 +1,100 @@
+x-chatwoot-base: &chatwoot-base
+  image: chatwoot/chatwoot:v4.15.1
+  env_file: .env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+  volumes:
+    - storage_data:/app/storage
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file: .env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DATABASE:-chatwoot}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # noeviction: sem isso o Redis pode descartar jobs da fila do Sidekiq
+    # silenciosamente quando a memória enche (mensagens somem sem erro).
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 160m
+
+  # Prepara o banco (migrations + seed) na PRIMEIRA subida e a cada upgrade
+  # de versão. Sobe, roda, e sai — não fica residente.
+  rails-prepare:
+    <<: *chatwoot-base
+    command: bundle exec rails db:chatwoot_prepare
+    restart: "no"
+
+  rails:
+    <<: *chatwoot-base
+    command: bundle exec rails s -p 3000 -b 0.0.0.0
+    depends_on:
+      rails-prepare:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:3000:3000"   # só localhost — o Caddy é quem expõe pra internet
+    mem_limit: 1024m
+
+  sidekiq:
+    <<: *chatwoot-base
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    depends_on:
+      rails-prepare:
+        condition: service_completed_successfully
+    mem_limit: 640m
+
+  triagem-bot:
+    build:
+      context: ./bot
+    env_file: ./bot/.env
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"   # também só localhost, exposto pelo Caddy
+    mem_limit: 256m
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - rails
+      - triagem-bot
+    mem_limit: 128m
+
+volumes:
+  postgres_data:
+  redis_data:
+  storage_data:
+  caddy_data:
+  caddy_config:

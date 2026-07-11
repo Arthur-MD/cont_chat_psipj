@@ -1,0 +1,11 @@
+# Caddy cuida do HTTPS sozinho (Let's Encrypt automático) — só precisa que
+# os dois domínios abaixo já estejam apontando (registro DNS tipo A) pro IP
+# desta VPS ANTES de subir o Caddy, senão a emissão do certificado falha.
+
+chat.SEU-DOMINIO.com.br {
+	reverse_proxy rails:3000
+}
+
+triagem.SEU-DOMINIO.com.br {
+	reverse_proxy triagem-bot:8000
+}
