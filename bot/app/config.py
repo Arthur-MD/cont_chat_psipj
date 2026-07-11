@@ -14,8 +14,16 @@ class Settings(BaseSettings):
     # webhooks de Agent Bot, então este é o mecanismo real de autenticação.
     webhook_token: str = ""
 
-    anthropic_api_key: str
-    triage_model: str = "claude-sonnet-4-6"
+    # --- Provedor de IA para a triagem ---
+    # "anthropic" (Claude) ou "openai" (GPT). Só o provedor escolhido precisa
+    # ter a chave preenchida; o outro pode ficar vazio.
+    llm_provider: str = "anthropic"
+
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-6"
+
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
 
     team_map: str = '{"geral": 1}'
     company_name: str = "Minha Empresa"
@@ -23,6 +31,10 @@ class Settings(BaseSettings):
     @property
     def teams(self) -> dict[str, int]:
         return json.loads(self.team_map)
+
+    @property
+    def provider(self) -> str:
+        return self.llm_provider.strip().lower()
 
 
 settings = Settings()

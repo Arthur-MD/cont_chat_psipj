@@ -1,13 +1,14 @@
 """Triagem por IA: decide se continua a conversa ou faz handoff p/ humano.
 
 Stateless: a cada mensagem reconstruímos o histórico a partir da conversa do
-Chatwoot e mandamos pro Claude. Sem banco de estado, sem sessão — robusto a
-restart e a múltiplos workers.
+Chatwoot e mandamos pro modelo (Claude ou GPT). Sem banco de estado, sem
+sessão — robusto a restart e a múltiplos workers.
+
+O provedor é escolhido por LLM_PROVIDER ("anthropic" | "openai"). A lógica de
+triagem é idêntica nos dois; só a chamada de API muda.
 """
 import json
 import logging
-
-from anthropic import AsyncAnthropic
 
 from .config import settings
 
@@ -15,9 +16,46 @@ log = logging.getLogger("triage-bot")
 
 # timeout curto: se a API estiver lenta, melhor cair no fallback (handoff p/
 # humano) do que deixar o cliente do WhatsApp esperando sem resposta.
-client = AsyncAnthropic(
-    api_key=settings.anthropic_api_key, timeout=30.0, max_retries=2
-)
+_TIMEOUT = 30.0
+_MAX_RETRIES = 2
+
+PROVIDER = settings.provider
+_anthropic = None
+_openai = None
+_init_error: str | None = None
+
+if PROVIDER == "anthropic":
+    if settings.anthropic_api_key:
+        from anthropic import AsyncAnthropic
+
+        _anthropic = AsyncAnthropic(
+            api_key=settings.anthropic_api_key,
+            timeout=_TIMEOUT,
+            max_retries=_MAX_RETRIES,
+        )
+    else:
+        _init_error = "LLM_PROVIDER=anthropic mas ANTHROPIC_API_KEY está vazio"
+elif PROVIDER == "openai":
+    if settings.openai_api_key:
+        from openai import AsyncOpenAI
+
+        _openai = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            timeout=_TIMEOUT,
+            max_retries=_MAX_RETRIES,
+        )
+    else:
+        _init_error = "LLM_PROVIDER=openai mas OPENAI_API_KEY está vazio"
+else:
+    _init_error = (
+        f"LLM_PROVIDER inválido: {settings.llm_provider!r} "
+        "(use 'anthropic' ou 'openai')"
+    )
+
+if _init_error:
+    # Não derruba o serviço: loga e faz toda conversa cair no fallback (humano).
+    log.error("Triagem por IA desabilitada — %s. Tudo será encaminhado a humano.",
+              _init_error)
 
 # Departamentos válidos = chaves do TEAM_MAP
 DEPARTMENTS = list(settings.teams.keys())
@@ -75,10 +113,11 @@ def fallback_decision(
 
 
 def _history_to_messages(conversation: dict) -> list[dict]:
-    """Converte as mensagens da conversa do Chatwoot no formato da Messages API.
+    """Converte as mensagens da conversa do Chatwoot no formato user/assistant.
 
-    message_type: 0=incoming (cliente), 1=outgoing (bot/agente). Notas privadas
-    e mensagens de sistema/atividade são ignoradas.
+    Esse formato é comum às duas APIs (Anthropic e OpenAI). message_type:
+    0=incoming (cliente), 1=outgoing (bot/agente). Notas privadas e mensagens
+    de sistema/atividade são ignoradas.
     """
     msgs = []
     for m in conversation.get("messages", []):
@@ -90,21 +129,44 @@ def _history_to_messages(conversation: dict) -> list[dict]:
         mtype = m.get("message_type")
         role = "user" if mtype == 0 else "assistant"
         msgs.append({"role": role, "content": content})
-    # Messages API exige começar com 'user'; descarta assistants iniciais órfãos
+    # As APIs exigem começar com 'user'; descarta assistants iniciais órfãos
     while msgs and msgs[0]["role"] == "assistant":
         msgs.pop(0)
     return msgs or [{"role": "user", "content": "(cliente iniciou a conversa)"}]
 
 
-async def triage(conversation: dict) -> dict:
-    messages = _history_to_messages(conversation)
-    try:
-        resp = await client.messages.create(
-            model=settings.triage_model,
+async def _call_llm(messages: list[dict]) -> str:
+    """Chama o provedor configurado e devolve o texto bruto da resposta."""
+    if _anthropic is not None:
+        resp = await _anthropic.messages.create(
+            model=settings.anthropic_model,
             max_tokens=600,
             system=SYSTEM_PROMPT,
             messages=messages,
         )
+        return "".join(b.text for b in resp.content if b.type == "text").strip()
+
+    # OpenAI: o system prompt vai como primeira mensagem (role "system").
+    # response_format=json_object garante JSON válido (o prompt já pede JSON).
+    resp = await _openai.chat.completions.create(
+        model=settings.openai_model,
+        max_tokens=600,
+        response_format={"type": "json_object"},
+        messages=[{"role": "system", "content": SYSTEM_PROMPT}, *messages],
+    )
+    return (resp.choices[0].message.content or "").strip()
+
+
+async def triage(conversation: dict) -> dict:
+    # Provedor mal configurado (sem chave / valor inválido): handoff direto.
+    if _init_error:
+        return fallback_decision(
+            summary=f"IA de triagem não configurada ({_init_error})."
+        )
+
+    messages = _history_to_messages(conversation)
+    try:
+        raw = await _call_llm(messages)
     except Exception:
         # API fora do ar / rate limit / timeout: sem fallback o bot ficaria
         # mudo e o cliente esperando — melhor entregar logo a um humano.
@@ -113,8 +175,8 @@ async def triage(conversation: dict) -> dict:
             summary="Falha na chamada à IA de triagem — encaminhado para humano."
         )
 
-    raw = "".join(b.text for b in resp.content if b.type == "text").strip()
-    # Defesa: tira cercas de markdown se o modelo escorregar
+    # Defesa: tira cercas de markdown se o modelo escorregar (Claude às vezes;
+    # OpenAI em modo json_object já vem limpo).
     if raw.startswith("```"):
         raw = raw.removeprefix("```json").removeprefix("```").strip()
         raw = raw.removesuffix("```").strip()

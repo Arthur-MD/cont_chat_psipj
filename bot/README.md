@@ -91,5 +91,9 @@ Como o bot e o Chatwoot compartilham a rede interna do Docker, use
 - **Janela de 24h (WhatsApp)**: como o fluxo é iniciado pelo cliente, as
   respostas caem na janela de serviço (grátis). Templates só seriam necessários
   se você reabrisse uma conversa fora das 24h.
-- **Modelo**: `claude-sonnet-4-6` por padrão. Para alto volume, troque
-  `TRIAGE_MODEL` por `claude-haiku-4-5-20251001` (mais barato).
+- **Provedor de IA**: escolha via `LLM_PROVIDER` no `.env` — `anthropic`
+  (Claude, padrão) ou `openai` (GPT). A lógica de triagem é idêntica; só a
+  chamada de API muda. Só o provedor escolhido precisa da chave preenchida.
+  - Anthropic: `ANTHROPIC_MODEL` (`claude-sonnet-4-6` padrão; troque por
+    `claude-haiku-4-5-20251001` para alto volume mais barato).
+  - OpenAI: `OPENAI_MODEL` (`gpt-4o-mini` padrão; `gpt-4o` para mais robustez).
