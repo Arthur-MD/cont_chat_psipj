@@ -56,8 +56,11 @@ services:
     depends_on:
       rails-prepare:
         condition: service_completed_successfully
-    ports:
-      - "127.0.0.1:3000:3000"   # só localhost — o Caddy é quem expõe pra internet
+    networks:
+      default:
+      edge:
+        aliases:
+          - chatwoot-rails
     mem_limit: 1024m
 
   sidekiq:
@@ -73,28 +76,19 @@ services:
       context: ./bot
     env_file: ./bot/.env
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8000:8000"   # também só localhost, exposto pelo Caddy
+    networks:
+      default:
+      edge:
+        aliases:
+          - triagem-bot
     mem_limit: 256m
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - rails
-      - triagem-bot
-    mem_limit: 128m
 
 volumes:
   postgres_data:
   redis_data:
   storage_data:
-  caddy_data:
-  caddy_config:
+
+networks:
+  edge:
+    external: true
+    name: contasofia_edge

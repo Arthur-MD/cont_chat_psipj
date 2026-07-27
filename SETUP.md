@@ -1,11 +1,31 @@
 # Chatwoot self-hosted na Hetzner (VPS + Docker Compose) — guia passo a passo
 
-Este guia sobe o Chatwoot + o bot de triagem numa única VPS CX23, usando os
+Este guia sobe o Chatwoot + o bot de triagem numa única VPS, usando os
 arquivos deste repositório: `docker-compose.yml` e `Caddyfile` na raiz, e o
 código do bot em `bot/`. Ao final você terá o painel do Chatwoot e o bot
 rodando com HTTPS automático.
 
 Repositório: https://github.com/Arthur-MD/cont_chat_psipj
+
+> **Atenção — a instalação em produção do psicologopj.com.br não segue mais
+> este guia à risca.** Desde julho/2026 o Chatwoot divide a VPS com a
+> plataforma contábil, e quem termina as portas 80/443 e emite os
+> certificados é o Caddy daquela stack. Por isso o `docker-compose.yml`
+> deste repo **não sobe mais um Caddy nem publica portas**: os serviços
+> `rails` e `triagem-bot` entram na rede Docker externa `contasofia_edge`
+> com os aliases `chatwoot-rails` e `triagem-bot`, e é por esses nomes que
+> o proxy os alcança. Consequências práticas para os passos abaixo:
+>
+> - a rede `contasofia_edge` precisa existir antes do `docker compose up`
+>   (ela é criada pela stack principal);
+> - o `Caddyfile` da raiz deste repo ficou como referência para uma
+>   instalação autônoma — em produção o roteamento de `chat.` e `triagem.`
+>   vive no Caddyfile da stack principal;
+> - o DNS dos subdomínios aponta para a VPS compartilhada, não para o IP
+>   citado nos exemplos deste guia.
+>
+> Para uma instalação isolada (uma VPS só para o Chatwoot), reative o
+> serviço `caddy` e os `ports` no compose e siga o guia sem ressalvas.
 
 ## Pré-requisito: DNS do domínio
 
