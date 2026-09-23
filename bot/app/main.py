@@ -10,9 +10,11 @@ Fluxo:
     -> conversa cai na fila do time; um atendente se auto-atribui (pull)
 """
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import logging
+import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 
@@ -36,7 +38,11 @@ _conv_locks: dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    task = asyncio.create_task(_auto_return_loop())
     yield
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
     await cw.aclose()
 
 
@@ -188,3 +194,54 @@ async def _handoff(display_id: int, decision: dict) -> None:
 
     # Abre p/ humanos. Bot para de responder automaticamente nesta conversa.
     await cw.set_status(display_id, "open")
+
+
+async def _auto_return_loop() -> None:
+    """Roda em background pela vida inteira do processo: a cada N minutos,
+    devolve ao bot conversas 'open' (com humano) paradas há muito tempo."""
+    interval = max(settings.auto_return_check_minutes, 1) * 60
+    while True:
+        try:
+            await _auto_return_inactive_conversations()
+        except Exception:
+            log.exception("erro no loop de devolução automática por inatividade")
+        await asyncio.sleep(interval)
+
+
+async def _auto_return_inactive_conversations() -> None:
+    if not settings.chatwoot_admin_token:
+        return  # sem CHATWOOT_ADMIN_TOKEN, a checagem fica desligada
+
+    threshold = time.time() - settings.auto_return_hours * 3600
+    try:
+        conversations = await cw.list_conversations(
+            status="open", inbox_id=settings.auto_return_inbox_id
+        )
+    except Exception:
+        log.exception("falha ao listar conversas 'open' p/ devolução automática")
+        return
+
+    for conv in conversations:
+        last_activity = conv.get("last_activity_at")
+        if not last_activity or last_activity >= threshold:
+            continue  # ainda dentro do prazo
+
+        display_id = conv.get("display_id") or conv.get("id")
+        if display_id is None:
+            continue
+
+        idle_hours = (time.time() - last_activity) / 3600
+        try:
+            # Nota interna (só agentes veem) — o cliente NÃO recebe nada,
+            # a devolução é silenciosa do lado dele.
+            await cw.send_message(
+                display_id,
+                f"🤖 Conversa devolvida à triagem automática após "
+                f"{idle_hours:.0f}h sem atividade.",
+                private=True,
+            )
+            await cw.set_status(display_id, "pending")
+            log.info("conv %s devolvida ao bot por inatividade (%.1fh)",
+                     display_id, idle_hours)
+        except Exception:
+            log.exception("falha ao devolver conversa %s por inatividade", display_id)

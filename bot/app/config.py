@@ -14,6 +14,21 @@ class Settings(BaseSettings):
     # webhooks de Agent Bot, então este é o mecanismo real de autenticação.
     webhook_token: str = ""
 
+    # Token de um usuário AGENTE (Perfil > Configurações de Perfil > Token de
+    # acesso) — não é o token do Agent Bot. Necessário só para a devolução
+    # automática por inatividade: o token do bot não tem permissão para
+    # listar conversas, só para agir na conversa que disparou o webhook.
+    # Deixe vazio para desligar a devolução automática.
+    chatwoot_admin_token: str = ""
+
+    # Conversas 'open' (com humano) sem nenhuma atividade por esse tempo
+    # voltam sozinhas para 'pending' (bot), sem avisar o cliente.
+    auto_return_hours: float = 24.0
+    # De quanto em quanto tempo o bot verifica as conversas (minutos).
+    auto_return_check_minutes: int = 15
+    # Restringe a checagem a um inbox específico. Vazio = todos os inboxes.
+    auto_return_inbox_id: int | None = None
+
     # --- Provedor de IA para a triagem ---
     # "anthropic" (Claude) ou "openai" (GPT). Só o provedor escolhido precisa
     # ter a chave preenchida; o outro pode ficar vazio.

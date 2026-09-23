@@ -3,6 +3,11 @@
 Todas as chamadas usam o access_token do Agent Bot no header `api_access_token`.
 O identificador de conversa nas URLs é o `display_id` (o número que aparece
 no painel), NÃO o `id` interno — esse é o erro mais comum.
+
+O token do Agent Bot só tem permissão para agir na conversa que disparou o
+webhook (get/send/status/priority/assign/labels). Listar conversas exige um
+token de AGENTE de verdade — daí o `admin_client` separado, usado só pela
+devolução automática por inatividade.
 """
 import httpx
 from .config import settings
@@ -19,6 +24,15 @@ class Chatwoot:
             },
             timeout=20.0,
         )
+        self.admin_client: httpx.AsyncClient | None = None
+        if settings.chatwoot_admin_token:
+            self.admin_client = httpx.AsyncClient(
+                headers={
+                    "api_access_token": settings.chatwoot_admin_token,
+                    "Content-Type": "application/json",
+                },
+                timeout=20.0,
+            )
 
     def _conv_url(self, conversation_id: int, suffix: str = "") -> str:
         return (
@@ -74,5 +88,24 @@ class Chatwoot:
         )
         r.raise_for_status()
 
+    async def list_conversations(
+        self, status: str, inbox_id: int | None = None
+    ) -> list[dict]:
+        """Lista conversas por status. Exige CHATWOOT_ADMIN_TOKEN (o token do
+        Agent Bot não tem permissão para este endpoint)."""
+        if self.admin_client is None:
+            raise RuntimeError("CHATWOOT_ADMIN_TOKEN não configurado")
+        params: dict = {"status": status}
+        if inbox_id is not None:
+            params["inbox_id"] = inbox_id
+        r = await self.admin_client.get(
+            f"{self.base}/api/v1/accounts/{self.account_id}/conversations",
+            params=params,
+        )
+        r.raise_for_status()
+        return r.json().get("data", {}).get("payload", [])
+
     async def aclose(self) -> None:
         await self.client.aclose()
+        if self.admin_client is not None:
+            await self.admin_client.aclose()
