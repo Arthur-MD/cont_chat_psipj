@@ -41,7 +41,15 @@ class Chatwoot:
         )
 
     async def get_conversation(self, conversation_id: int) -> dict:
-        r = await self.client.get(self._conv_url(conversation_id))
+        # Usa o admin_client (usuário real) quando disponível: o Chatwoot
+        # quebra com 500 ao renderizar essa rota pro Agent Bot quando a
+        # conversa já tem TIME atribuído (bug do próprio Chatwoot — o
+        # jbuilder de time chama `Current.user.teams`, método que só existe
+        # em User, não em AgentBot). Toda conversa que já passou por handoff
+        # tem time atribuído, então sem isso o bot fica permanentemente
+        # incapaz de reprocessá-la depois de voltar ao 'pending'.
+        client = self.admin_client or self.client
+        r = await client.get(self._conv_url(conversation_id))
         r.raise_for_status()
         return r.json()
 
