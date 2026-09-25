@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
 
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-4.1-mini"
 
     team_map: str = '{"geral": 1}'
     company_name: str = "Minha Empresa"
