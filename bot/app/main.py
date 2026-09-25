@@ -114,6 +114,10 @@ async def _process(display_id: int, message_id: int | None) -> None:
             full = await cw.get_conversation(display_id)
             if full.get("status") not in (None, "pending"):
                 return
+            # O GET da conversa só traz a última mensagem; sem o histórico o
+            # bot responde cada mensagem como se fosse a primeira.
+            if cw.admin_client is not None:
+                full["messages"] = await cw.get_messages(display_id)
 
             incoming = [
                 m for m in full.get("messages", [])

@@ -15,10 +15,9 @@ class Settings(BaseSettings):
     webhook_token: str = ""
 
     # Token de um usuário AGENTE (Perfil > Configurações de Perfil > Token de
-    # acesso) — não é o token do Agent Bot. Necessário só para a devolução
-    # automática por inatividade: o token do bot não tem permissão para
-    # listar conversas, só para agir na conversa que disparou o webhook.
-    # Deixe vazio para desligar a devolução automática.
+    # acesso) — não é o token do Agent Bot, que não pode listar conversas nem
+    # ler o histórico de mensagens. Sem ele, o bot só enxerga a última
+    # mensagem do cliente e a devolução automática fica desligada.
     chatwoot_admin_token: str = ""
 
     # Conversas 'open' (com humano) sem nenhuma atividade por esse tempo

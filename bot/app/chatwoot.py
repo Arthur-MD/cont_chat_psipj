@@ -5,9 +5,9 @@ O identificador de conversa nas URLs é o `display_id` (o número que aparece
 no painel), NÃO o `id` interno — esse é o erro mais comum.
 
 O token do Agent Bot só tem permissão para agir na conversa que disparou o
-webhook (get/send/status/priority/assign/labels). Listar conversas exige um
-token de AGENTE de verdade — daí o `admin_client` separado, usado só pela
-devolução automática por inatividade.
+webhook (get/send/status/priority/assign/labels). Listar conversas e ler o
+histórico de mensagens exige um token de AGENTE de verdade — daí o
+`admin_client` separado.
 """
 import httpx
 from .config import settings
@@ -52,6 +52,17 @@ class Chatwoot:
         r = await client.get(self._conv_url(conversation_id))
         r.raise_for_status()
         return r.json()
+
+    async def get_messages(self, conversation_id: int) -> list[dict]:
+        """Últimas 20 mensagens da conversa, em ordem cronológica.
+
+        O GET da conversa traz só a ÚLTIMA mensagem em `messages`; o histórico
+        vem desta rota, que devolve 401 para o token do Agent Bot."""
+        if self.admin_client is None:
+            raise RuntimeError("CHATWOOT_ADMIN_TOKEN não configurado")
+        r = await self.admin_client.get(self._conv_url(conversation_id, "/messages"))
+        r.raise_for_status()
+        return r.json().get("payload", [])
 
     async def send_message(
         self, conversation_id: int, content: str, private: bool = False

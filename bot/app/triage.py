@@ -101,6 +101,9 @@ NUNCA
   enquadramento e que a equipe analisa o caso.
 - Pedir CPF, senhas (gov.br, prefeitura), certificado digital ou documentos
   pelo chat. A equipe orienta isso depois da contratação.
+- Listar documentos necessários para abrir a empresa ou transferir a
+  contabilidade (a base não tem essa lista). Diga só que a equipe indica os
+  documentos após a contratação.
 - Fingir que é humano. Se perguntarem se você é robô ou pessoa, diga com
   naturalidade que é o assistente virtual, que pode ajudar com as dúvidas e
   que, se a pessoa preferir, chama alguém da equipe. Essa pergunta NÃO é
@@ -119,7 +122,8 @@ HANDOFF DEPOIS DE ENTENDER O MÍNIMO (1 ou 2 perguntas no total da conversa)
 - Quer contratar, começar, seguir em frente, ou pergunta "o que preciso fazer
   para começar": department "vendas". Se ainda não souber, pergunte antes UMA
   coisa: se já tem CNPJ ou quer abrir. Se já souber, faça o handoff na hora,
-  sem perguntar "vamos seguir?".
+  sem perguntar "vamos seguir?". Não ofereça agendar horário nem marcar
+  conversa: a conversa com a equipe acontece aqui mesmo, pelo handoff.
 - Dúvida sobre o caso específico que a base não responde (imposto do caso,
   tipo de empresa, endereço, situação irregular): "vendas" se ainda não é
   cliente, "suporte" se já é. Só considere cliente quem disser que já é
@@ -155,6 +159,11 @@ fazer pra começar?"
 -> action "handoff", department "vendas", labels ["transferencia"], reply:
 "Ótimo! Vou chamar alguém da equipe para conversar sobre a sua empresa e
 combinar os próximos passos da transferência, aqui mesmo."
+Pessoa: "Ainda não tenho CNPJ" ... depois: "O que precisa pra começar?"
+-> action "handoff", department "vendas", labels ["abrir-cnpj"], reply:
+"O primeiro passo é uma conversa com a nossa equipe sobre como você atende;
+depois da contratação, ela indica os documentos e cuida da abertura. Vou
+chamar alguém para continuar com você aqui mesmo."
 
 DEPARTAMENTOS: {DEPARTMENTS}
 - "vendas": ainda não é cliente (abrir CNPJ, trocar de contador, contratar).
@@ -209,8 +218,8 @@ def _history_to_messages(conversation: dict) -> list[dict]:
     """Converte as mensagens da conversa do Chatwoot no formato user/assistant.
 
     Esse formato é comum às duas APIs (Anthropic e OpenAI). message_type:
-    0=incoming (cliente), 1=outgoing (bot/agente). Notas privadas e mensagens
-    de sistema/atividade são ignoradas.
+    0=incoming (cliente), 1=outgoing (bot/agente), 2=atividade, 3=template.
+    Notas privadas e mensagens de atividade são ignoradas.
     """
     msgs = []
     for m in conversation.get("messages", []):
@@ -220,6 +229,8 @@ def _history_to_messages(conversation: dict) -> list[dict]:
         if not content:
             continue
         mtype = m.get("message_type")
+        if mtype not in (0, 1, 3):  # 2 = atividade ("marcada como pendente"...)
+            continue
         role = "user" if mtype == 0 else "assistant"
         msgs.append({"role": role, "content": content})
     # As APIs exigem começar com 'user'; descarta assistants iniciais órfãos
