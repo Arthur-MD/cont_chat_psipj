@@ -104,5 +104,6 @@ Como o bot e o Chatwoot compartilham a rede interna do Docker, use
   chamada de API muda. Só o provedor escolhido precisa da chave preenchida.
   - Anthropic: `ANTHROPIC_MODEL` (`claude-sonnet-4-6` padrão; troque por
     `claude-haiku-4-5-20251001` para alto volume mais barato).
-  - OpenAI: `OPENAI_MODEL` (`gpt-4.1-mini` padrão). Modelos de raciocínio
-    (`gpt-5*`, `o*`) não funcionam sem adaptar `_call_llm` em `triage.py`.
+  - OpenAI: `OPENAI_MODEL` (`gpt-6-luna` padrão) + `OPENAI_REASONING_EFFORT`
+    (`low` padrão). Para modelos comuns (`gpt-4.1-mini`, `gpt-4o-mini`), deixe
+    `OPENAI_REASONING_EFFORT` vazio: eles usam temperature/max_tokens.

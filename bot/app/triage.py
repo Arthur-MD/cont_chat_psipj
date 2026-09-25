@@ -253,13 +253,20 @@ async def _call_llm(messages: list[dict]) -> str:
 
     # OpenAI: o system prompt vai como primeira mensagem (role "system").
     # response_format=json_object garante JSON válido (o prompt já pede JSON).
-    resp = await _openai.chat.completions.create(
-        model=settings.openai_model,
-        max_tokens=600,
-        temperature=_TEMPERATURE,
-        response_format={"type": "json_object"},
-        messages=[{"role": "system", "content": SYSTEM_PROMPT}, *messages],
-    )
+    params: dict = {
+        "model": settings.openai_model,
+        "response_format": {"type": "json_object"},
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *messages],
+    }
+    if settings.openai_reasoning_effort:
+        # Modelos de raciocínio (gpt-5*, gpt-6*): não aceitam temperature nem
+        # max_tokens, e o raciocínio conta no limite de saída.
+        params["max_completion_tokens"] = 4000
+        params["reasoning_effort"] = settings.openai_reasoning_effort
+    else:
+        params["max_tokens"] = 600
+        params["temperature"] = _TEMPERATURE
+    resp = await _openai.chat.completions.create(**params)
     return (resp.choices[0].message.content or "").strip()
 
 

@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
 
     openai_api_key: str = ""
-    openai_model: str = "gpt-4.1-mini"
+    openai_model: str = "gpt-6-luna"
+    # Modelos de raciocínio (gpt-5*, gpt-6*): none | low | medium | high.
+    # Deixe VAZIO para modelos comuns (gpt-4.1-mini, gpt-4o-mini).
+    openai_reasoning_effort: str = "low"
 
     team_map: str = '{"geral": 1}'
     company_name: str = "Minha Empresa"
