@@ -56,6 +56,14 @@ falhar, a conversa cai lá. Os nomes das chaves são os mesmos que aparecem no
 prompt de triagem — ajuste em `app/triage.py` se quiser adicionar outros
 departamentos no futuro.
 
+## O que o bot sabe
+
+O que o bot pode afirmar sobre o negócio (plano, preço, o que está incluído,
+FAQ) fica em `app/conhecimento.md`, que entra inteiro no prompt. Mantenha em
+sincronia com o site: mudou o preço ou o FAQ lá, mude aqui e faça o redeploy
+do `triagem-bot`. As regras de quando responder e quando passar para um humano
+ficam no `SYSTEM_PROMPT` de `app/triage.py`.
+
 ## 4. Rodar local
 
 ```bash
